@@ -26,6 +26,20 @@
         "type": "number",
         "default": "0"
       },
+      "scanDuration": {
+        "title": "Scan Duration",
+        "type": "number",
+        "required": true,
+        "default": "0",
+        "description": "How long, in milliseconds, the plugin should listen for updates before cooldown. Set to 0 to continuously listen."
+      },
+      "cooldownDuration": {
+        "title": "Cooldown Duration",
+        "type": "number",
+        "required": true,
+        "default": "0",
+        "description": "How long, in milliseconds, the plugin should wait before starting another scan cycle. Ignored if Scan Duration is 0."
+      },
       "IgnoreDeviceNames": {
         "title": "Ignored DeviceNames",
         "type": "array",

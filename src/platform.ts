@@ -14,6 +14,7 @@ import { GoveePlatformAccessory } from "./platformAccessory";
 
 import {
   startDiscovery as GoveeStartDiscovery,
+  stopDiscovery as GoveeStopDiscovery,
   registerScanStart as GoveeRegisterScanStart,
   registerScanStop as GoveeRegisterScanStop,
   debug as GoveeDebug,
@@ -35,6 +36,7 @@ export class GoveeHomebridgePlatform implements DynamicPlatformPlugin {
   public readonly accessories: PlatformAccessory[] = [];
 
   private platformStatus?: APIEvent;
+  private isCooldown?: Boolean;
   private readonly discoveryCache = new Map();
 
   constructor(
@@ -53,6 +55,8 @@ export class GoveeHomebridgePlatform implements DynamicPlatformPlugin {
       // run the method to discover / register your devices as accessories
 
       this.platformStatus = APIEvent.DID_FINISH_LAUNCHING;
+
+      this.isCooldown = false;
 
       this.discoverDevices();
     });
@@ -84,13 +88,29 @@ export class GoveeHomebridgePlatform implements DynamicPlatformPlugin {
     if (this.config.debug) {
       GoveeDebug(true);
     }
-
-    GoveeStartDiscovery(this.goveeDiscoveredReading.bind(this));
-    GoveeRegisterScanStart(this.goveeScanStarted.bind(this));
-    GoveeRegisterScanStop(this.goveeScanStopped.bind(this));
+    
+    this.startScanCycle();
 
     // it is possible to remove platform accessories at any time using `api.unregisterPlatformAccessories`, eg.:
     // this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+  }
+
+  /**
+   * This method starts bluetooth discovery and registers the proper handlers.
+   * If the scanDuration config value is > 0, it will enter cooldown.
+   */
+  private startScanCycle() {
+    GoveeStartDiscovery(this.goveeDiscoveredReading.bind(this));
+    GoveeRegisterScanStart(this.goveeScanStarted.bind(this));
+    GoveeRegisterScanStop(this.goveeScanStopped.bind(this));
+    if (this.config.scanDuration > 0) {
+      this.log.debug("Stop scanning after ", this.config.scanDuration);
+      setTimeout(async () => {
+        this.isCooldown = true;
+        this.log.debug("Start cooldown for ", this.config.cooldownDuration);
+        await GoveeStopDiscovery();
+      }, this.config.scanDuration);
+    }
   }
 
   private goveeDiscoveredReading(reading: GoveeReading) {
@@ -192,6 +212,15 @@ export class GoveeHomebridgePlatform implements DynamicPlatformPlugin {
     this.log.info("Govee Scan Stopped");
 
     if (!this.platformStatus || this.platformStatus === APIEvent.SHUTDOWN) {
+      return;
+    }
+
+    if (this.isCooldown) {
+      this.log.debug('Cooldown started');
+      setTimeout(async () => {
+        this.isCooldown = false;
+        this.startScanCycle();
+      }, this.config.cooldownDuration);
       return;
     }
 

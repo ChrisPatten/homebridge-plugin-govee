@@ -29,6 +29,7 @@ class GoveeHomebridgePlatform {
             log.debug("Executed didFinishLaunching callback");
             // run the method to discover / register your devices as accessories
             this.platformStatus = "didFinishLaunching" /* DID_FINISH_LAUNCHING */;
+            this.isCooldown = false;
             this.discoverDevices();
         });
         this.api.on("shutdown", () => {
@@ -54,11 +55,26 @@ class GoveeHomebridgePlatform {
         if (this.config.debug) {
             (0, govee_bt_client_1.debug)(true);
         }
+        this.startScanCycle();
+        // it is possible to remove platform accessories at any time using `api.unregisterPlatformAccessories`, eg.:
+        // this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+    }
+    /**
+     * This method starts bluetooth discovery and registers the proper handlers.
+     * If the scanDuration config value is > 0, it will enter cooldown.
+     */
+    startScanCycle() {
         (0, govee_bt_client_1.startDiscovery)(this.goveeDiscoveredReading.bind(this));
         (0, govee_bt_client_1.registerScanStart)(this.goveeScanStarted.bind(this));
         (0, govee_bt_client_1.registerScanStop)(this.goveeScanStopped.bind(this));
-        // it is possible to remove platform accessories at any time using `api.unregisterPlatformAccessories`, eg.:
-        // this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+        if (this.config.scanDuration > 0) {
+            this.log.debug("Stop scanning after ", this.config.scanDuration);
+            setTimeout(async () => {
+                this.isCooldown = true;
+                this.log.debug("Start cooldown for ", this.config.cooldownDuration);
+                await (0, govee_bt_client_1.stopDiscovery)();
+            }, this.config.scanDuration);
+        }
     }
     goveeDiscoveredReading(reading) {
         this.log.debug("Govee reading", reading);
@@ -127,6 +143,14 @@ class GoveeHomebridgePlatform {
     goveeScanStopped() {
         this.log.info("Govee Scan Stopped");
         if (!this.platformStatus || this.platformStatus === "shutdown" /* SHUTDOWN */) {
+            return;
+        }
+        if (this.isCooldown) {
+            this.log.debug('Cooldown started');
+            setTimeout(async () => {
+                this.isCooldown = false;
+                this.startScanCycle();
+            }, this.config.cooldownDuration);
             return;
         }
         const WAIT_INTERVAL = 5000;

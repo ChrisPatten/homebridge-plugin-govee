@@ -12,6 +12,7 @@ export declare class GoveeHomebridgePlatform implements DynamicPlatformPlugin {
     readonly Characteristic: typeof Characteristic;
     readonly accessories: PlatformAccessory[];
     private platformStatus?;
+    private isCooldown?;
     private readonly discoveryCache;
     constructor(log: Logger, config: PlatformConfig, api: API);
     /**
@@ -25,6 +26,11 @@ export declare class GoveeHomebridgePlatform implements DynamicPlatformPlugin {
      * must not be registered again to prevent "duplicate UUID" errors.
      */
     discoverDevices(): void;
+    /**
+     * This method starts bluetooth discovery and registers the proper handlers.
+     * If the scanDuration config value is > 0, it will enter cooldown.
+     */
+    private startScanCycle;
     private goveeDiscoveredReading;
     private goveeScanStarted;
     private goveeScanStopped;
